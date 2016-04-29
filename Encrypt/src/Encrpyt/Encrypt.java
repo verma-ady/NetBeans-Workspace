@@ -10,6 +10,7 @@ import javacard.framework.*;
 import javacard.security.AESKey;
 import javacard.security.CryptoException;
 import javacard.security.KeyBuilder;
+import javacard.security.MessageDigest;
 import javacard.security.RandomData;
 import javacardx.crypto.Cipher;
 
@@ -27,9 +28,16 @@ public class Encrypt extends Applet {
     public static final byte E_ENCRYPT_D = (byte) 0xB2;
     public static final byte E_INP_D = (byte) 0xB3;
     public static final byte E_OUT_D = (byte) 0xB4;
+    public static final byte E_SHA = (byte) 0xB5;
+    
     boolean isSet = false;
     private Cipher symCipher;
     short data = (short) 0;
+    byte[] dataB = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 
+                                0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
+    
+    byte[] dataSHA = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07};
+                
     
     /**
      * Installs this applet.
@@ -103,10 +111,6 @@ public class Encrypt extends Applet {
                 if(!isSet) ISOException.throwIt(ISO7816.SW_SECURITY_STATUS_NOT_SATISFIED);
                 symCipher.init(myKey, Cipher.MODE_ENCRYPT);
                 
-                byte[] dataB = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 
-                                0x0B, 0x0C, 0x0D, 0x0E, 0x0F};
-                
-                
                 short le = apdu.setOutgoing();
 
                 if(!myKey.isInitialized())
@@ -122,6 +126,20 @@ public class Encrypt extends Applet {
                 apdu.setOutgoingLength(le);
                 apdu.sendBytes((short)0, le);
 //                ISOException.throwIt((short)32);
+                break;
+            case E_SHA: 
+                MessageDigest mSHA = MessageDigest.getInstance(MessageDigest.ALG_SHA_256, false);
+                mSHA.reset();
+                short leSHA = apdu.setOutgoing();
+                
+                try {
+                  if( leSHA != mSHA.doFinal(dataSHA, (short)0, (short)dataSHA.length, buffer, (short)0) )
+                      ISOException.throwIt(ISO7816.SW_WRONG_DATA);
+                } catch (CryptoException exception) {
+                    ISOException.throwIt(exception.getReason());
+                }
+                apdu.setOutgoingLength(leSHA);
+                apdu.sendBytes((short)0, leSHA);
                 break;
             default : ISOException.throwIt(ISO7816.SW_INS_NOT_SUPPORTED);
         }//switch
